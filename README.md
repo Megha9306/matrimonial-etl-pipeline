@@ -1,64 +1,20 @@
-# Extraction Layer Documentation
+# LLM Extraction Module
 
-## Overview
-
-The Extraction layer converts unstructured documents into plain text. It automatically detects document types and routes them to the appropriate extractor.
-
-## Supported Document Types
-
-- **Text-based PDFs** - Direct text extraction using `pdfplumber`
-- **Scanned PDFs** - OCR-based extraction using Tesseract
-- **Images** (.png, .jpg, .jpeg, .bmp, .tiff) - OCR-based extraction
-- **Plain text files** (.txt) - Direct file reading
+Converts plain extracted text (from Extraction layer) into structured JSON biodata for matrimonial profiles.
 
 ## Architecture
 
 ```
-extract_text() [Main Dispatcher]
-├── Text File → extract_from_text_file()
-├── PDF (Text-based) → extract_from_text_based_pdf()
-├── PDF (Scanned) → extract_from_scanned_pdf_ocr()
-└── Image → extract_from_image_ocr()
-```
-
-## Module Structure
-
-| Module | Purpose |
-|--------|---------|
-| `extractor.py` | Main dispatcher and batch extraction functions |
-| `config.py` | Configuration, logging setup, and constants |
-| `utils.py` | File validation, type detection, text sanitization |
-| `text_extractor.py` | Plain text file extraction |
-| `pdf_extractor.py` | Text-based and scanned PDF detection |
-| `ocr_extractor.py` | OCR-based extraction for images and scanned PDFs |
-
-## Installation
-
-### 1. Install Python dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Install Tesseract OCR
-
-**Windows:**
-- Download from: https://github.com/UB-Mannheim/tesseract/wiki
-- Run the installer (use default installation path)
-- Or set custom path in `config.py`:
-
-```python
-OCR_CONFIG['tesseract_cmd'] = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-```
-
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt-get install tesseract-ocr
-```
-
-**macOS:**
-```bash
-brew install tesseract
+Input (Plain Text)
+       ↓
+  extract_profile()
+       ↓
+  LLMExtractor
+       ├─ Prompt Template
+       ├─ LLM Call (OpenAI, etc.)
+       └─ Response Validation
+       ↓
+Output (Structured JSON Dict)
 ```
 
 ## Usage
@@ -66,122 +22,154 @@ brew install tesseract
 ### Basic Usage
 
 ```python
-from Extraction import extract_text
+from llmextraction import extract_profile
 
-# Extract from any supported document
-text = extract_text('documents/resume.pdf')
-if text:
-    print(text)
-else:
-    print("Extraction failed")
+text = """
+Name: John Doe
+Age: 28
+Profession: Software Engineer
+Religion: Hindu
+Caste: Brahmin
+Location: Delhi
+"""
+
+profile = extract_profile(text)
+print(profile)
+# {
+#     'full_name': 'John Doe',
+#     'age': 28,
+#     'date_of_birth': None,
+#     ...
+# }
 ```
 
-### Batch Processing
+### With Custom API Key or Model
 
 ```python
-from Extraction import extract_batch
+profile = extract_profile(
+    text,
+    api_key="sk-...",
+    model="gpt-4"
+)
+```
 
-files = [
-    'documents/doc1.pdf',
-    'documents/doc2.png',
-    'documents/doc3.txt'
+### Using LLMExtractor Class
+
+```python
+from llmextraction import LLMExtractor
+
+extractor = LLMExtractor(api_key="sk-...", model="gpt-4o-mini")
+
+# Extract multiple texts
+profiles = [
+    extractor.extract(text1),
+    extractor.extract(text2),
+    extractor.extract(text3),
 ]
-
-results = extract_batch(files)
-for file_path, extracted_text in results.items():
-    if extracted_text:
-        print(f"✓ {file_path}: {len(extracted_text)} characters")
-    else:
-        print(f"✗ {file_path}: Extraction failed")
-```
-
-### Logging
-
-Logging is automatically configured. To adjust log levels:
-
-```python
-import logging
-
-# Set to DEBUG for more detailed output
-logging.getLogger('Extraction').setLevel(logging.DEBUG)
 ```
 
 ## Configuration
 
-Edit `config.py` to customize:
+Edit `config.py` to adjust:
+- **Model**: `gemini-2.0-flash` (default) or any Google Gemini model
+- **Temperature**: 0.1 (low, for deterministic extraction)
+- **Max Tokens**: 1024 (adjust based on text length)
+- **Extraction Schema**: Fields to extract
 
-```python
-# Maximum file size (bytes)
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
+## Schema
 
-# OCR settings
-OCR_CONFIG = {
-    'tesseract_cmd': r'C:\Program Files\Tesseract-OCR\tesseract.exe',
-    'language': 'eng',
-    'timeout_seconds': 60,
-    'quality_threshold': 0.3
-}
+The module extracts the following fields:
 
-# PDF detection settings
-PDF_CONFIG = {
-    'max_pages_for_text_detection': 5,
-    'min_text_threshold': 0.1  # If > 10% text, treat as text-based
-}
-```
+| Field | Type | Notes |
+|-------|------|-------|
+| full_name | str \| None | Person's full name |
+| age | int \| None | Age in years |
+| date_of_birth | str \| None | YYYY-MM-DD format |
+| height | str \| None | With unit (e.g., "5.8 ft") |
+| gender | str \| None | Male, Female, Other |
+| marital_status | str \| None | Single, Married, etc. |
+| profession | str \| None | Occupation |
+| education | str \| None | Qualification |
+| religion | str \| None | Religion |
+| caste | str \| None | Caste/Community |
+| location | str \| None | City/Region |
+
+**All missing fields are returned as `None`.**
+
+## Design Principles
+
+1. **Extraction Only**: Converts text → JSON, no normalization
+2. **Strict Schema**: Always returns the exact schema, missing fields are null
+3. **Deterministic**: Low temperature for consistent extraction
+4. **Error Handling**: Gracefully returns schema with nulls on error
+5. **LLM Agnostic**: Can be adapted for OpenAI, Azure, Anthropic, etc.
+6. **No Side Effects**: No file I/O, no database writes
+7. **Type Safe**: Full type hints for IDE support
+8. **Production Ready**: Proper error handling, docstrings, logging
+
+## Module Structure
+
+| File | Purpose |
+|------|---------|
+| `__init__.py` | Public API exports |
+| `extractor.py` | Core LLMExtractor class and extract_profile() |
+| `config.py` | LLM settings and extraction schema |
+| `prompt_template.py` | Prompt engineering logic |
+| `validators.py` | JSON parsing and validation |
 
 ## Error Handling
 
-All errors are gracefully handled:
-- Invalid files return `None`
-- Empty files return empty string `""`
-- Errors are logged with meaningful messages
-- OCR fallback is automatic for PDFs
+If the LLM call fails or returns malformed JSON:
+- Logs the error
+- Returns schema with all fields as `None`
+- Pipeline continues without crashing
 
-## Performance Notes
+## Dependencies
 
-- Text-based PDF extraction: Fast (milliseconds to seconds)
-- Scanned PDF/Image OCR: Slower (seconds to minutes depending on page count)
-- Batch processing respects system resources
-- Large PDFs (100+ pages) may take several minutes
+```
+openai>=1.0.0
+```
 
-## Return Values
+Install with:
+```bash
+pip install -r requirements.txt
+```
 
-| Scenario | Return |
-|----------|--------|
-| Successful extraction | String with extracted text |
-| File not found | `None` (logged as error) |
-| Empty document | Empty string `""` (logged as warning) |
-| Unsupported format | `None` (logged as error) |
-| OCR unavailable | `None` (logged as error) |
+## Environment Variables
 
-## Limitations
+The module reads API key from `GOOGLE_API_KEY`:
 
-- OCR accuracy depends on document quality
-- Handwritten text is not well-recognized by default Tesseract
-- Very large files (>100MB) may be slow
-- PDF detection relies on text sampling (first 5 pages)
+```bash
+export GOOGLE_API_KEY="your-google-api-key"
+python your_script.py
+```
 
-## Next Steps in Pipeline
+Or pass directly:
+```python
+extract_profile(text, api_key="your-google-api-key")
+```
 
-The extracted text output is ready for:
-- **Normalization Layer**: Clean and standardize extracted data
-- **LLM Extraction Layer**: Apply LLM-based entity extraction
-- **Storage Layer**: Store processed documents
+## Integration with Pipeline
 
-## Troubleshooting
+```python
+from Extraction.text_extractor import extract_text  # from Extraction layer
+from llmextraction import extract_profile  # this module
 
-**"Tesseract not found"**
-- Install Tesseract OCR
-- Set correct path in `config.py`
+# Step 1: Extract text from documents
+raw_text = extract_text("document.pdf")
 
-**"pdfplumber import error"**
-- Run: `pip install pdfplumber`
+# Step 2: Extract structured profile
+profile = extract_profile(raw_text)
 
-**"Empty text extraction from PDFs"**
-- Verify it's not a scanned PDF
-- Check file is not corrupted
-- Try with OCR extraction manually
+# Step 3: Send to Normalisation layer
+# (Normalisation layer will clean, validate, and normalize the data)
+```
 
-**Memory issues with large PDFs**
-- Process in smaller batches
-- Reduce `max_pages_for_text_detection`
+## Future Enhancements
+
+- [ ] Support for OpenAI (swap providers)
+- [ ] Support for Anthropic Claude
+- [ ] Batch extraction for multiple texts
+- [ ] Caching of responses
+- [ ] Metrics and monitoring
+- [ ] Custom schema support

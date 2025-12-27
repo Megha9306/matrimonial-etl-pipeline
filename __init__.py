@@ -1,15 +1,20 @@
 """
-Package initialization for the Extraction layer.
+LLM Extraction module for matrimonial biodata.
+
+Converts plain text from the Extraction layer into structured JSON.
+
+Public API:
+    - extract_profile(text: str) -> dict: Main extraction function
+
+Example:
+    >>> from llmextraction import extract_profile
+    >>> text = "John Doe, 28 years, Software Engineer, Hindu, Delhi"
+    >>> profile = extract_profile(text)
+    >>> print(profile["full_name"])
+    John Doe
 """
 
-from .config import setup_logger
-from .extractor import extract_text, extract_batch
+from .llmextractor import extract_profile, LLMExtractor
+from .config import EXTRACTION_SCHEMA
 
-# Set up logging for the package
-logger = setup_logger(__name__)
-
-__all__ = [
-    'extract_text',
-    'extract_batch',
-    'logger'
-]
+__all__ = ["extract_profile", "LLMExtractor", "EXTRACTION_SCHEMA"]

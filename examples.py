@@ -1,179 +1,131 @@
 """
-Example usage of the Extraction layer.
-
-Run this file to see the extraction layer in action.
+Example usage of the LLM Extraction module.
+Demonstrates how to use extract_profile() in the pipeline.
 """
 
-import sys
-from pathlib import Path
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from Extraction.extractor import extract_text, extract_batch
-from Extraction.config import setup_logger
-
-# Set up logger
-logger = setup_logger(__name__)
+import json
+import os
+from llmextractor import extract_profile, LLMExtractor
 
 
-def example_single_file_extraction():
-    """Example: Extract text from a single file."""
-    logger.info("=" * 60)
-    logger.info("Example 1: Single File Extraction")
-    logger.info("=" * 60)
+def example_1_simple_extraction():
+    """Example 1: Simple extraction with default settings."""
+    print("=" * 60)
+    print("EXAMPLE 1: Simple Profile Extraction")
+    print("=" * 60)
     
-    # You would replace these with actual file paths
-    sample_files = [
-        'input/sample.txt',
-        'input/sample.pdf',
-        'input/image.png'
+    text = """
+    Name: Priya Sharma
+    Age: 26
+    Date of Birth: 15 March 1998
+    Height: 5'6"
+    Gender: Female
+    Marital Status: Single
+    Profession: Software Developer
+    Education: B.Tech in Computer Science
+    Religion: Hindu
+    Caste: Sharma (Brahmin)
+    Location: Bangalore, Karnataka
+    """
+    
+    profile = extract_profile(text)
+    print("\nExtracted Profile:")
+    print(json.dumps(profile, indent=2))
+
+
+def example_2_incomplete_data():
+    """Example 2: Extraction with missing/incomplete data."""
+    print("\n" + "=" * 60)
+    print("EXAMPLE 2: Incomplete Data (Missing Fields)")
+    print("=" * 60)
+    
+    text = """
+    Rajesh Kumar
+    Works as a Consultant
+    From Mumbai
+    """
+    
+    profile = extract_profile(text)
+    print("\nExtracted Profile (with nulls for missing fields):")
+    print(json.dumps(profile, indent=2))
+
+
+def example_3_custom_model():
+    """Example 3: Using a different model."""
+    print("\n" + "=" * 60)
+    print("EXAMPLE 3: Custom Model (Gemini 1.5 Pro)")
+    print("=" * 60)
+    
+    text = """
+    Anjali Verma, 24, Doctor, Hindu, Delhi
+    """
+    
+    # Using Gemini 1.5 Pro instead of default gemini-2.0-flash
+    profile = extract_profile(text, model="gemini-1.5-pro")
+    print("\nExtracted Profile (using Gemini 1.5 Pro):")
+    print(json.dumps(profile, indent=2))
+
+
+def example_4_class_usage():
+    """Example 4: Using LLMExtractor class directly."""
+    print("\n" + "=" * 60)
+    print("EXAMPLE 4: LLMExtractor Class Usage")
+    print("=" * 60)
+    
+    # Initialize extractor once
+    extractor = LLMExtractor(model="gemini-2.0-flash")
+    
+    texts = [
+        "Vikram Singh, 30, Engineer, Sikh, Delhi",
+        "Neha Patel, 25, Doctor, Hindu, Pune",
+        "Meera Gupta, 28, Teacher, Hindu, Jaipur",
     ]
     
-    for file_path in sample_files:
-        logger.info(f"\nExtracting from: {file_path}")
-        
-        text = extract_text(file_path)
-        
-        if text is not None:
-            preview = text[:200] + "..." if len(text) > 200 else text
-            logger.info(f"Success! Extracted text ({len(text)} chars):")
-            logger.info(f"Preview: {preview}")
-        else:
-            logger.error(f"Failed to extract from: {file_path}")
+    print("\nExtracting multiple profiles...")
+    for i, text in enumerate(texts, 1):
+        profile = extractor.extract(text)
+        print(f"\nProfile {i}:")
+        print(f"  Name: {profile['full_name']}")
+        print(f"  Profession: {profile['profession']}")
+        print(f"  Location: {profile['location']}")
 
 
-def example_batch_extraction():
-    """Example: Extract text from multiple files in batch."""
-    logger.info("\n" + "=" * 60)
-    logger.info("Example 2: Batch Extraction")
-    logger.info("=" * 60)
+def example_5_error_handling():
+    """Example 5: Error handling with empty/invalid input."""
+    print("\n" + "=" * 60)
+    print("EXAMPLE 5: Error Handling")
+    print("=" * 60)
     
-    # You would replace these with actual file paths
-    files_to_process = [
-        'input/sample1.txt',
-        'input/sample2.pdf',
-        'input/sample3.png'
-    ]
+    # Empty text
+    profile1 = extract_profile("")
+    print("\nEmpty text input:")
+    print(f"Result: {profile1}")
+    print(f"All fields null: {all(v is None for v in profile1.values())}")
     
-    logger.info(f"Processing {len(files_to_process)} files...")
-    results = extract_batch(files_to_process)
-    
-    # Summarize results
-    logger.info("\nBatch Results Summary:")
-    successful = 0
-    failed = 0
-    
-    for file_path, extracted_text in results.items():
-        if extracted_text is not None:
-            successful += 1
-            logger.info(f"  ✓ {file_path}: {len(extracted_text)} characters")
-        else:
-            failed += 1
-            logger.error(f"  ✗ {file_path}: Failed")
-    
-    logger.info(f"\nTotal: {successful} successful, {failed} failed")
-
-
-def example_text_file_extraction():
-    """Example: Extract from plain text file."""
-    logger.info("\n" + "=" * 60)
-    logger.info("Example 3: Text File Extraction")
-    logger.info("=" * 60)
-    
-    # Sample text file path
-    text_file = 'input/resume.txt'
-    
-    logger.info(f"Extracting from text file: {text_file}")
-    text = extract_text(text_file)
-    
-    if text:
-        logger.info(f"Successfully extracted {len(text)} characters")
-        logger.info("First 100 characters:")
-        logger.info(text[:100])
-    else:
-        logger.error(f"Failed to extract from: {text_file}")
-
-
-def example_pdf_extraction():
-    """Example: Extract from PDF (auto-detects if text-based or scanned)."""
-    logger.info("\n" + "=" * 60)
-    logger.info("Example 4: PDF Extraction (Auto-detect)")
-    logger.info("=" * 60)
-    
-    pdf_file = 'input/document.pdf'
-    
-    logger.info(f"Extracting from PDF: {pdf_file}")
-    logger.info("(Automatically detecting if text-based or scanned)")
-    
-    text = extract_text(pdf_file)
-    
-    if text:
-        logger.info(f"Successfully extracted {len(text)} characters")
-        logger.info("First 150 characters:")
-        logger.info(text[:150])
-    else:
-        logger.error(f"Failed to extract from: {pdf_file}")
-
-
-def example_image_extraction():
-    """Example: Extract text from image using OCR."""
-    logger.info("\n" + "=" * 60)
-    logger.info("Example 5: Image OCR Extraction")
-    logger.info("=" * 60)
-    
-    image_file = 'input/document_image.png'
-    
-    logger.info(f"Extracting from image: {image_file}")
-    logger.info("(Using Tesseract OCR)")
-    
-    text = extract_text(image_file)
-    
-    if text:
-        logger.info(f"Successfully extracted {len(text)} characters")
-        logger.info("Extracted text:")
-        logger.info(text)
-    else:
-        logger.error(f"Failed to extract from: {image_file}")
-
-
-def example_error_handling():
-    """Example: Demonstrate error handling."""
-    logger.info("\n" + "=" * 60)
-    logger.info("Example 6: Error Handling")
-    logger.info("=" * 60)
-    
-    # Non-existent file
-    logger.info("\nTest 1: Non-existent file")
-    text = extract_text('input/does_not_exist.txt')
-    if text is None:
-        logger.info("Correctly returned None for missing file")
-    
-    # Unsupported file type
-    logger.info("\nTest 2: Unsupported file type")
-    text = extract_text('input/file.xyz')
-    if text is None:
-        logger.info("Correctly returned None for unsupported format")
-    
-    # Empty file
-    logger.info("\nTest 3: Empty file")
-    text = extract_text('input/empty.txt')
-    if text == "":
-        logger.info("Correctly returned empty string for empty file")
+    # Whitespace only
+    profile2 = extract_profile("   \n  \t  ")
+    print("\nWhitespace-only input:")
+    print(f"All fields null: {all(v is None for v in profile2.values())}")
 
 
 if __name__ == "__main__":
-    logger.info("Starting Extraction Layer Examples")
-    logger.info("Note: Replace file paths with actual documents in your input/ folder")
+    # Set GOOGLE_API_KEY before running:
+    # export GOOGLE_API_KEY="your-google-api-key"
     
-    # Run examples (comment out as needed)
-    # example_single_file_extraction()
-    # example_batch_extraction()
-    example_text_file_extraction()
-    # example_pdf_extraction()
-    # example_image_extraction()
-    # example_error_handling()
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        print("ERROR: GOOGLE_API_KEY environment variable not set")
+        print("Set it with: export GOOGLE_API_KEY='your-google-api-key'")
+        exit(1)
     
-    logger.info("\n" + "=" * 60)
-    logger.info("Examples completed!")
-    logger.info("=" * 60)
+    try:
+        # Run examples
+        example_1_simple_extraction()
+        example_2_incomplete_data()
+        example_3_custom_model()
+        example_4_class_usage()
+        example_5_error_handling()
+        
+    except Exception as e:
+        print(f"\nError: {e}")
+        print("\nNote: Ensure GOOGLE_API_KEY is set correctly")
